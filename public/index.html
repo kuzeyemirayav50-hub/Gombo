@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gombo Chat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <h1>Gombo</h1>
+      <p>Tek seferlik şifre ve nickname ile sohbet et.</p>
+    </header>
+
+    <main class="chat-area">
+      <div id="messageList" class="message-list"></div>
+      <form id="messageForm" class="message-form">
+        <input id="messageInput" type="text" placeholder="Mesajınızı yazın..." autocomplete="off" />
+        <button type="submit">Gönder</button>
+      </form>
+    </main>
+  </div>
+
+  <div id="loginOverlay" class="overlay active">
+    <div class="login-card">
+      <h2>Gombo'ya Hoşgeldin</h2>
+      <p>İlk olarak bir nickname ve tek seferlik şifre belirle.</p>
+      <form id="loginForm" class="login-form">
+        <label>
+          Nickname
+          <input id="nicknameInput" type="text" placeholder="Nickname" required maxlength="20" />
+        </label>
+        <label>
+          Tek seferlik şifre
+          <input id="passwordInput" type="password" placeholder="Şifre" required maxlength="30" />
+        </label>
+        <button type="submit">Sohbete Başla</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
