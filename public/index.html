@@ -16,12 +16,30 @@
       <p>Nickname ve şifre ile giriş yapın; isterseniz yeni hesap da oluşturun.</p>
     </header>
 
-    <main class="chat-area">
-      <div id="messageList" class="message-list"></div>
-      <form id="messageForm" class="message-form">
-        <input id="messageInput" type="text" placeholder="Mesajınızı yazın..." autocomplete="off" />
-        <button type="submit">Gönder</button>
-      </form>
+    <main class="app-grid">
+      <aside class="sidebar">
+        <div class="sidebar-card">
+          <h3>Arkadaşlar</h3>
+          <form id="friendForm" class="friend-form">
+            <input id="friendInput" type="text" placeholder="Nickname ile ekle" maxlength="20" />
+            <button type="submit">Ekle</button>
+          </form>
+          <ul id="friendsList" class="friends-list"></ul>
+        </div>
+      </aside>
+
+      <section class="chat-area">
+        <div class="chat-toolbar">
+          <button id="globalModeButton" class="mode-btn active" type="button">Genel Sohbet</button>
+          <button id="dmModeButton" class="mode-btn" type="button">DM</button>
+        </div>
+        <div id="chatTitle" class="chat-title">Genel Sohbet</div>
+        <div id="messageList" class="message-list"></div>
+        <form id="messageForm" class="message-form">
+          <input id="messageInput" type="text" placeholder="Mesajınızı yazın..." autocomplete="off" />
+          <button type="submit">Gönder</button>
+        </form>
+      </section>
     </main>
   </div>
 

@@ -64,6 +64,79 @@ body {
   display: none;
 }
 
+.app-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.sidebar-card h3 {
+  margin: 0 0 12px;
+  color: var(--accent);
+}
+
+.friend-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.friend-form input {
+  flex: 1;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+}
+
+.friend-form button {
+  border: none;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+
+.friends-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.friend-item {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.friend-item.active {
+  border-color: var(--accent);
+  background: rgba(226, 15, 15, 0.16);
+}
+
 .chat-area {
   display: flex;
   flex-direction: column;
@@ -72,6 +145,32 @@ body {
   border-radius: 18px;
   min-height: 70vh;
   padding: 18px;
+}
+
+.chat-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mode-btn {
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.mode-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.chat-title {
+  margin-bottom: 12px;
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .message-list {
@@ -216,6 +315,12 @@ body {
   color: white;
   font-weight: 700;
   cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .app-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {

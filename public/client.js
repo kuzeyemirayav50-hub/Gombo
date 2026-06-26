@@ -9,16 +9,28 @@ const logoutButton = document.getElementById('logoutButton');
 const authSubmitButton = document.getElementById('authSubmitButton');
 const authHint = document.getElementById('authHint');
 const authModeButtons = Array.from(document.querySelectorAll('.tab'));
+const friendForm = document.getElementById('friendForm');
+const friendInput = document.getElementById('friendInput');
+const friendsList = document.getElementById('friendsList');
+const chatTitle = document.getElementById('chatTitle');
+const globalModeButton = document.getElementById('globalModeButton');
+const dmModeButton = document.getElementById('dmModeButton');
 
 const SESSION_STORAGE_KEY = 'gomboAuthToken';
 
 let socket;
 let nickname = '';
+let currentUserId = null;
 let authToken = localStorage.getItem(SESSION_STORAGE_KEY) || '';
 let authenticated = false;
 let authMode = 'login';
+let friends = [];
+let activeFriend = null;
+let channelMode = 'global';
+let globalMessages = [];
+let dmMessages = {};
 
-function addMessage({ username, message, timestamp }) {
+function addMessageToList({ username, message, timestamp }) {
   const item = document.createElement('div');
   item.className = 'message';
   const time = new Date(timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
@@ -29,6 +41,44 @@ function addMessage({ username, message, timestamp }) {
   `;
   messageList.appendChild(item);
   messageList.scrollTop = messageList.scrollHeight;
+}
+
+function renderMessages() {
+  messageList.innerHTML = '';
+  const items = channelMode === 'dm' && activeFriend ? (dmMessages[activeFriend.id] || []) : globalMessages;
+
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'message';
+    empty.innerHTML = `<strong>${channelMode === 'dm' ? 'DM' : 'Sohbet'}</strong><span>${channelMode === 'dm' ? 'Bu konuşmada henüz mesaj yok.' : 'Henüz genel mesaj yok.'}</span>`;
+    messageList.appendChild(empty);
+    return;
+  }
+
+  items.forEach(addMessageToList);
+}
+
+function renderFriends() {
+  friendsList.innerHTML = '';
+
+  if (!friends.length) {
+    const empty = document.createElement('li');
+    empty.className = 'message';
+    empty.textContent = 'Henüz arkadaş yok.';
+    friendsList.appendChild(empty);
+    return;
+  }
+
+  friends.forEach((friend) => {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `friend-item${activeFriend && activeFriend.id === friend.id ? ' active' : ''}`;
+    button.textContent = friend.nickname;
+    button.addEventListener('click', () => openConversation(friend));
+    item.appendChild(button);
+    friendsList.appendChild(item);
+  });
 }
 
 function setOverlayVisible(visible) {
@@ -56,9 +106,34 @@ function persistSession(token) {
 function clearSession() {
   authToken = '';
   nickname = '';
+  currentUserId = null;
   authenticated = false;
+  friends = [];
+  activeFriend = null;
+  channelMode = 'global';
+  globalMessages = [];
+  dmMessages = {};
   persistSession('');
   logoutButton.classList.add('hidden');
+  renderFriends();
+  renderMessages();
+}
+
+function setChannelMode(mode) {
+  channelMode = mode;
+  globalModeButton.classList.toggle('active', mode === 'global');
+  dmModeButton.classList.toggle('active', mode === 'dm');
+  chatTitle.textContent = mode === 'dm' && activeFriend ? `DM · ${activeFriend.nickname}` : 'Genel Sohbet';
+  renderMessages();
+}
+
+function openConversation(friend) {
+  activeFriend = friend;
+  setChannelMode('dm');
+  renderFriends();
+  if (socket) {
+    socket.emit('loadConversation', { friendId: friend.id });
+  }
 }
 
 function initializeSocket() {
@@ -74,8 +149,10 @@ function initializeSocket() {
     }
   });
 
-  socket.on('authSuccess', () => {
+  socket.on('authSuccess', ({ user }) => {
     authenticated = true;
+    currentUserId = user.id;
+    nickname = user.nickname;
     logoutButton.classList.remove('hidden');
     setOverlayVisible(false);
   });
@@ -87,12 +164,51 @@ function initializeSocket() {
     setOverlayVisible(true);
   });
 
+  socket.on('friendsList', ({ friends: nextFriends }) => {
+    friends = nextFriends;
+    renderFriends();
+  });
+
+  socket.on('friendAdded', ({ friend }) => {
+    friends = [...friends, friend];
+    renderFriends();
+  });
+
+  socket.on('friendError', ({ error }) => {
+    alert(error);
+  });
+
+  socket.on('conversationLoaded', ({ friendId, messages }) => {
+    dmMessages[friendId] = messages || [];
+    if (channelMode === 'dm' && activeFriend && activeFriend.id === friendId) {
+      renderMessages();
+    }
+  });
+
   socket.on('receiveMessage', (payload) => {
-    addMessage(payload);
+    globalMessages.push(payload);
+    if (channelMode === 'global') {
+      renderMessages();
+    }
+  });
+
+  socket.on('receivePrivateMessage', (payload) => {
+    const friendId = payload.fromId === currentUserId ? payload.toId : payload.fromId;
+    if (!dmMessages[friendId]) {
+      dmMessages[friendId] = [];
+    }
+    dmMessages[friendId].push(payload);
+
+    if (channelMode === 'dm' && activeFriend && activeFriend.id === friendId) {
+      renderMessages();
+    }
   });
 
   socket.on('userJoined', (payload) => {
-    addMessage(payload);
+    globalMessages.push(payload);
+    if (channelMode === 'global') {
+      renderMessages();
+    }
   });
 }
 
@@ -116,8 +232,9 @@ async function restoreSession() {
 
     const data = await response.json();
     nickname = data.user.nickname;
-    messageList.innerHTML = '';
-    data.messages.forEach(addMessage);
+    currentUserId = data.user.id;
+    globalMessages = data.messages || [];
+    renderMessages();
     initializeSocket();
   } catch (error) {
     clearSession();
@@ -151,12 +268,11 @@ loginForm.addEventListener('submit', async (event) => {
 
     const data = await response.json();
     nickname = data.user.nickname;
+    currentUserId = data.user.id;
     authToken = data.token;
     persistSession(authToken);
-
-    messageList.innerHTML = '';
-    data.messages.forEach(addMessage);
-
+    globalMessages = data.messages || [];
+    renderMessages();
     initializeSocket();
   } catch (error) {
     alert('Sunucuya bağlanırken hata oluştu.');
@@ -169,7 +285,6 @@ logoutButton.addEventListener('click', () => {
   }
   clearSession();
   setOverlayVisible(true);
-  messageList.innerHTML = '';
 });
 
 authModeButtons.forEach((button) => {
@@ -179,7 +294,33 @@ authModeButtons.forEach((button) => {
   });
 });
 
+friendForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const nicknameToAdd = friendInput.value.trim();
+
+  if (!nicknameToAdd || !socket || !authenticated) {
+    return;
+  }
+
+  socket.emit('addFriend', { nickname: nicknameToAdd });
+  friendInput.value = '';
+});
+
+globalModeButton.addEventListener('click', () => {
+  setChannelMode('global');
+});
+
+dmModeButton.addEventListener('click', () => {
+  if (!activeFriend) {
+    alert('Önce bir arkadaş seçin.');
+    return;
+  }
+  setChannelMode('dm');
+});
+
 updateAuthModeUI();
+renderFriends();
+renderMessages();
 restoreSession();
 
 messageForm.addEventListener('submit', (event) => {
@@ -190,7 +331,25 @@ messageForm.addEventListener('submit', (event) => {
     return;
   }
 
-  socket.emit('sendMessage', { message });
-  addMessage({ username: nickname, message, timestamp: new Date().toISOString() });
+  if (channelMode === 'dm' && activeFriend) {
+    socket.emit('sendPrivateMessage', { friendId: activeFriend.id, message });
+    const payload = {
+      fromId: currentUserId,
+      toId: activeFriend.id,
+      username: nickname,
+      message,
+      timestamp: new Date().toISOString(),
+    };
+    if (!dmMessages[activeFriend.id]) {
+      dmMessages[activeFriend.id] = [];
+    }
+    dmMessages[activeFriend.id].push(payload);
+    renderMessages();
+  } else {
+    socket.emit('sendMessage', { message });
+    globalMessages.push({ username: nickname, message, timestamp: new Date().toISOString() });
+    renderMessages();
+  }
+
   messageInput.value = '';
 });

@@ -45,6 +45,10 @@ function saveDatabase(data) {
 
 const dbData = loadDatabase();
 const sessions = new Map();
+const friendships = new Map();
+const userSockets = new Map();
+const socketToUser = new Map();
+const dmMessages = new Map();
 
 async function findUserByNickname(nickname) {
   if (supabase) {
@@ -56,6 +60,18 @@ async function findUserByNickname(nickname) {
   }
 
   return dbData.users.find((user) => user.nickname === nickname);
+}
+
+async function findUserById(userId) {
+  if (supabase) {
+    const { data, error } = await supabase.from('users').select('*').eq('id', userId).maybeSingle();
+    if (error) {
+      throw error;
+    }
+    return data;
+  }
+
+  return dbData.users.find((user) => user.id === userId);
 }
 
 async function addUser(nickname, passwordHash) {
@@ -139,6 +155,40 @@ async function getRecentMessages() {
       message: message.message,
       timestamp: message.createdAt,
     }));
+}
+
+function getConversationKey(userIdA, userIdB) {
+  return [Math.min(userIdA, userIdB), Math.max(userIdA, userIdB)].join(':');
+}
+
+function getFriendList(userId) {
+  const list = friendships.get(userId) || new Set();
+  return Array.from(list).map((friendId) => ({ id: friendId }));
+}
+
+async function populateFriendList(userId) {
+  const friendIds = getFriendList(userId);
+  const friends = [];
+
+  for (const friend of friendIds) {
+    const user = await findUserById(friend.id);
+    if (user) {
+      friends.push({ id: user.id, nickname: user.nickname });
+    }
+  }
+
+  return friends;
+}
+
+function emitToUser(userId, eventName, payload) {
+  const sockets = userSockets.get(userId);
+  if (!sockets) {
+    return;
+  }
+
+  for (const socketId of sockets) {
+    io.to(socketId).emit(eventName, payload);
+  }
 }
 
 async function handleAuthRequest({ nickname, password, mode = 'login' }) {
@@ -255,7 +305,7 @@ app.get(/.*/, (req, res) => {
 io.on('connection', (socket) => {
   console.log('Yeni kullanıcı bağlandı:', socket.id);
 
-  socket.on('authenticate', ({ token }) => {
+  socket.on('authenticate', async ({ token }) => {
     const user = sessions.get(token);
     if (!user) {
       socket.emit('authFailed', { error: 'Kimlik doğrulama başarısız.' });
@@ -264,12 +314,61 @@ io.on('connection', (socket) => {
 
     socket.data.user = user;
     socket.join('gombo');
+
+    if (!userSockets.has(user.id)) {
+      userSockets.set(user.id, new Set());
+    }
+
+    userSockets.get(user.id).add(socket.id);
+    socketToUser.set(socket.id, user.id);
+
+    const friends = await populateFriendList(user.id);
     socket.emit('authSuccess', { user });
+    socket.emit('friendsList', { friends });
+
     socket.to('gombo').emit('userJoined', {
       username: 'Gombo',
       message: `${user.nickname} sohbete katıldı.`,
       timestamp: new Date().toISOString(),
     });
+  });
+
+  socket.on('addFriend', async ({ nickname }) => {
+    const user = socket.data.user;
+    if (!user || !nickname) {
+      return;
+    }
+
+    const targetUser = await findUserByNickname(nickname);
+    if (!targetUser || targetUser.id === user.id) {
+      socket.emit('friendError', { error: 'Geçersiz kullanıcı.' });
+      return;
+    }
+
+    if (!friendships.has(user.id)) {
+      friendships.set(user.id, new Set());
+    }
+
+    const userFriends = friendships.get(user.id);
+    if (userFriends.has(targetUser.id)) {
+      socket.emit('friendError', { error: 'Bu kullanıcı zaten arkadaşınız.' });
+      return;
+    }
+
+    userFriends.add(targetUser.id);
+    const friends = await populateFriendList(user.id);
+    socket.emit('friendsList', { friends });
+    socket.emit('friendAdded', { friend: { id: targetUser.id, nickname: targetUser.nickname } });
+  });
+
+  socket.on('loadConversation', async ({ friendId }) => {
+    const user = socket.data.user;
+    if (!user || !friendId) {
+      return;
+    }
+
+    const history = dmMessages.get(getConversationKey(user.id, friendId)) || [];
+    socket.emit('conversationLoaded', { friendId, messages: history });
   });
 
   socket.on('sendMessage', async ({ message }) => {
@@ -293,7 +392,45 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('sendPrivateMessage', async ({ friendId, message }) => {
+    const user = socket.data.user;
+    if (!user || !friendId || !message || !message.trim()) {
+      return;
+    }
+
+    const targetUser = await findUserById(friendId);
+    if (!targetUser) {
+      socket.emit('friendError', { error: 'Arkadaş bulunamadı.' });
+      return;
+    }
+
+    const payload = {
+      fromId: user.id,
+      toId: targetUser.id,
+      username: user.nickname,
+      message,
+      timestamp: new Date().toISOString(),
+    };
+
+    const conversationKey = getConversationKey(user.id, targetUser.id);
+    const history = dmMessages.get(conversationKey) || [];
+    history.push(payload);
+    dmMessages.set(conversationKey, history);
+
+    emitToUser(user.id, 'receivePrivateMessage', payload);
+    emitToUser(targetUser.id, 'receivePrivateMessage', payload);
+  });
+
   socket.on('disconnect', () => {
+    const userId = socketToUser.get(socket.id);
+    if (userId && userSockets.has(userId)) {
+      userSockets.get(userId).delete(socket.id);
+      if (userSockets.get(userId).size === 0) {
+        userSockets.delete(userId);
+      }
+    }
+
+    socketToUser.delete(socket.id);
     console.log('Kullanıcı ayrıldı:', socket.id);
   });
 });
