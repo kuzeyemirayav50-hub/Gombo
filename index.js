@@ -50,6 +50,63 @@ const userSockets = new Map();
 const socketToUser = new Map();
 const dmMessages = new Map();
 
+async function loadFriendshipsFromSupabase(userId) {
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('friendships')
+    .select('friend_id')
+    .eq('user_id', userId);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map((item) => item.friend_id);
+}
+
+async function saveFriendship(userId, friendId) {
+  if (!supabase) {
+    return;
+  }
+
+  await supabase.from('friendships').insert({ user_id: userId, friend_id: friendId });
+}
+
+async function loadDmMessagesFromSupabase(userId) {
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('dm_messages')
+    .select('*')
+    .or(`from_id.eq.${userId},to_id.eq.${userId}`)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+async function saveDmMessage(payload) {
+  if (!supabase) {
+    return;
+  }
+
+  await supabase.from('dm_messages').insert({
+    from_id: payload.fromId,
+    to_id: payload.toId,
+    username: payload.username,
+    message: payload.message,
+    created_at: payload.timestamp,
+  });
+}
+
 async function findUserByNickname(nickname) {
   if (supabase) {
     const { data, error } = await supabase.from('users').select('*').eq('nickname', nickname).maybeSingle();
@@ -167,6 +224,21 @@ function getFriendList(userId) {
 }
 
 async function populateFriendList(userId) {
+  if (supabase) {
+    const friendIds = await loadFriendshipsFromSupabase(userId);
+    friendships.set(userId, new Set(friendIds));
+    const friends = [];
+
+    for (const friendId of friendIds) {
+      const user = await findUserById(friendId);
+      if (user) {
+        friends.push({ id: user.id, nickname: user.nickname });
+      }
+    }
+
+    return friends;
+  }
+
   const friendIds = getFriendList(userId);
   const friends = [];
 
@@ -356,6 +428,9 @@ io.on('connection', (socket) => {
     }
 
     userFriends.add(targetUser.id);
+    if (supabase) {
+      await saveFriendship(user.id, targetUser.id);
+    }
     const friends = await populateFriendList(user.id);
     socket.emit('friendsList', { friends });
     socket.emit('friendAdded', { friend: { id: targetUser.id, nickname: targetUser.nickname } });
@@ -367,7 +442,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const history = dmMessages.get(getConversationKey(user.id, friendId)) || [];
+    const history = await loadConversationHistory(user.id, friendId);
     socket.emit('conversationLoaded', { friendId, messages: history });
   });
 
@@ -411,6 +486,10 @@ io.on('connection', (socket) => {
       message,
       timestamp: new Date().toISOString(),
     };
+
+    if (supabase) {
+      await saveDmMessage(payload);
+    }
 
     const conversationKey = getConversationKey(user.id, targetUser.id);
     const history = dmMessages.get(conversationKey) || [];
