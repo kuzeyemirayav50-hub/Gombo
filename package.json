@@ -12,6 +12,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.1",
+    "bcryptjs": "^2.4.3",
     "express": "^5.2.1",
     "socket.io": "^4.8.3"
   }

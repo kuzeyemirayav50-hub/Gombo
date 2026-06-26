@@ -31,6 +31,13 @@ body {
   padding: 24px 0 16px;
 }
 
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
 .app-header h1 {
   margin: 0;
   font-size: 3rem;
@@ -42,6 +49,19 @@ body {
   margin: 8px auto 0;
   color: var(--muted);
   max-width: 640px;
+}
+
+.logout-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.logout-btn.hidden {
+  display: none;
 }
 
 .chat-area {
@@ -137,8 +157,34 @@ body {
 }
 
 .login-card p {
-  margin: 0 0 22px;
+  margin: 0 0 18px;
   color: var(--muted);
+}
+
+.auth-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tab {
+  flex: 1;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.auth-hint {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
 }
 
 .login-form {

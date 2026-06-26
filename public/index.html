@@ -9,8 +9,11 @@
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <h1>Gombo</h1>
-      <p>Tek seferlik şifre ve nickname ile sohbet et.</p>
+      <div class="header-row">
+        <h1>Gombo</h1>
+        <button id="logoutButton" class="logout-btn hidden" type="button">Çıkış</button>
+      </div>
+      <p>Nickname ve şifre ile giriş yapın; isterseniz yeni hesap da oluşturun.</p>
     </header>
 
     <main class="chat-area">
@@ -25,17 +28,22 @@
   <div id="loginOverlay" class="overlay active">
     <div class="login-card">
       <h2>Gombo'ya Hoşgeldin</h2>
-      <p>İlk olarak bir nickname ve tek seferlik şifre belirle.</p>
+      <p>Hesabın varsa giriş yap, yoksa kayıt ol.</p>
+      <div class="auth-toggle" role="tablist" aria-label="Kimlik doğrulama modu">
+        <button type="button" class="tab active" data-mode="login">Giriş Yap</button>
+        <button type="button" class="tab" data-mode="signup">Kayıt Ol</button>
+      </div>
       <form id="loginForm" class="login-form">
+        <p id="authHint" class="auth-hint">Mevcut hesabınla giriş yap.</p>
         <label>
           Nickname
           <input id="nicknameInput" type="text" placeholder="Nickname" required maxlength="20" />
         </label>
         <label>
-          Tek seferlik şifre
+          Şifre
           <input id="passwordInput" type="password" placeholder="Şifre" required maxlength="30" />
         </label>
-        <button type="submit">Sohbete Başla</button>
+        <button id="authSubmitButton" type="submit">Giriş Yap</button>
       </form>
     </div>
   </div>
